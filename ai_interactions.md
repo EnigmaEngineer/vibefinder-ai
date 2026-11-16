@@ -1,8 +1,93 @@
 # AI Interactions Log
 
-> **Stretch features only.** Only fill in the sections that apply to stretch features you attempted. If you did not attempt a stretch feature, leave its section blank or delete it. This file is not required for the core project.
+## Project 4: Agentic workflow traces (VibeFinder 2.0)
+
+The agent in `src/agent.py` runs a fixed decision chain on every request: input guardrail, parse explicit cues, retrieve (guides + catalog), plan a scoring mode, build a taste profile, recommend, self-check confidence, revise if below 0.5 (up to 2 times, keeping the best attempt), explain, then verify the output. Each step is appended to `result.trace` with the data it used.
+
+- **Full saved traces (6 runs):** [logs/agent_traces.md](logs/agent_traces.md), regenerated with `python scripts/record_traces.py`. It covers a normal RAG request, a seed-song request, an unsupported genre, a revision, a blocked injection and the no-RAG baseline.
+- **Per-run JSON:** `python -m src.assistant "<request>" --save-trace` writes `logs/traces/*.json`.
+- **Print one live:** `python -m src.assistant "<request>" --show-trace`.
+
+Two traces embedded below. The first shows a check that fit alone missed: the picks matched the built profile at 0.93, but the user asked for a genre the catalog doesn't have, so confidence was capped to 0.45 and flagged. The second shows the self-check and revise loop: confidence was 0.25, the agent tried energy-focused scoring, that scored lower, it found nothing else to relax, and it kept attempt 1 with a human-review flag.
+
+#### RAG on
+
+##### Query: `heavy metal for headbanging`
+
+- status: **ok**, RAG: on, confidence: 0.45 (low), needs human review: True
+
+| # | step | detail |
+|---|---|---|
+| 1 | input_guardrail | passed |
+| 2 | parse | explicit cues: none `{"unsupported": ["metal"]}` |
+| 3 | retrieve | 1 guide(s), seed song: none `{"guides": [{"id": "genre-rock", "score": 0.3895}]}` |
+| 4 | plan | merge guide hints with explicit cues -> score catalog with default weights + diversity penalty -> self-check confidence (revise up to 2x if below 0.5) -> explain with template explainer, then verify against catalog |
+| 5 | build_profile | 4 signal(s) `{"profile": {"genre": "rock", "energy": 0.88, "valence": 0.5, "acousticness": 0.1}}` |
+| 6 | recommend | attempt 1: confidence 0.93 `{"top": ["Storm Runner", "Neon Afterhours", "Breakwater"], "confidence": 0.93}` |
+| 7 | self_check | confidence capped from 0.93 to 0.45: requested genre is not in the catalog |
+| 8 | output_guardrail | passed |
+| 9 | done | low confidence in 0.6 ms |
+
+Final picks: Storm Runner, Neon Afterhours, Breakwater, Gym Hero, Concrete Verses
+
+Answer:
+
+```text
+You asked for "heavy metal for headbanging".
+I read that as: genre rock, energy 0.88, positivity 0.50, acousticness 0.10 (from [genre-rock]).
+1. "Storm Runner" by Voltline (rock, intense) - genre match, energy close to target.
+2. "Neon Afterhours" by Kilowatt Kids (edm, intense) - energy close to target, valence close to target.
+3. "Breakwater" by Iron Tide (rock, energetic) - genre match, energy close to target.
+4. "Gym Hero" by Max Pulse (pop, intense) - energy close to target, valence close to target.
+5. "Concrete Verses" by Mic Theory (hip hop, confident) - energy close to target, valence close to target.
+Note: the catalog has no metal songs, so genre was left out
+Note: low confidence: these are the closest songs, not strong matches
+```
+
+#### RAG on
+
+##### Query: `chill but not boring`
+
+- status: **ok**, RAG: on, confidence: 0.25 (low), needs human review: True
+
+| # | step | detail |
+|---|---|---|
+| 1 | input_guardrail | passed |
+| 2 | parse | explicit cues: mood 'chill' `{"explicit": {"mood": "chill"}}` |
+| 3 | retrieve | 0 guide(s), seed song: none |
+| 4 | plan | use explicit cues only -> score catalog with mood_first weights + diversity penalty -> self-check confidence (revise up to 2x if below 0.5) -> explain with template explainer, then verify against catalog `{"mode": "mood_first"}` |
+| 5 | build_profile | 1 signal(s) `{"profile": {"mood": "chill"}}` |
+| 6 | recommend | attempt 1: confidence 0.25 `{"mode": "mood_first", "top": ["Library Rain", "Spacewalk Thoughts", "Midnight Coding"], "confidence": 0.25}` |
+| 7 | self_check | confidence 0.25 < 0.5: switched to energy_focused scoring |
+| 8 | recommend | attempt 2: confidence 0.17 `{"mode": "energy_focused", "top": ["Library Rain", "Spacewalk Thoughts", "Allegro for Sparrows"], "confidence": 0.17}` |
+| 9 | self_check | low confidence but nothing left to relax |
+| 10 | self_check | kept the best of 2 attempts (confidence 0.25, mode mood_first) |
+| 11 | output_guardrail | passed |
+| 12 | done | low confidence in 0.7 ms |
+
+Final picks: Library Rain, Spacewalk Thoughts, Midnight Coding, Allegro for Sparrows, Blue Room Sessions
+
+Answer:
+
+```text
+You asked for "chill but not boring".
+I read that as: mood chill.
+1. "Library Rain" by Paper Lanterns (lofi, chill) - mood match.
+2. "Spacewalk Thoughts" by Orbit Bloom (ambient, chill) - mood match.
+3. "Midnight Coding" by LoRoom (lofi, chill) - mood match.
+4. "Allegro for Sparrows" by Ada Verlaine (classical, happy) - no matching features.
+5. "Blue Room Sessions" by The Hartley Trio (jazz, relaxed) - no matching features.
+Note: low confidence: these are the closest songs, not strong matches
+```
+
+The AI collaboration reflection (accepted and rejected suggestions) is in [model_card.md](model_card.md#ai-collaboration).
 
 ---
+
+## Module 3 log (VibeFinder 1.0)
+
+The sections below are from the original Module 3 project and are kept for history.
+
 
 ## Challenge 1: Advanced Song Features
 
