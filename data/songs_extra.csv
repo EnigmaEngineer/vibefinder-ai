@@ -1,0 +1,13 @@
+id,title,artist,genre,mood,energy,tempo_bpm,valence,danceability,acousticness,popularity,release_decade,detailed_mood_tags,instrumentalness,speechiness
+11,Concrete Verses,Mic Theory,hip hop,confident,0.78,94,0.62,0.83,0.12,71,2010,"swagger, gritty, upbeat",0.01,0.32
+12,Late Train Home,Quiet Cartel,hip hop,moody,0.55,86,0.38,0.74,0.25,58,2020,"reflective, nostalgic, late night",0.05,0.24
+13,Nocturne in Glass,Ada Verlaine,classical,calm,0.18,64,0.42,0.22,0.97,49,2000,"delicate, focused, late night",0.96,0.03
+14,Allegro for Sparrows,Ada Verlaine,classical,happy,0.46,132,0.76,0.35,0.95,44,1990,"bright, playful",0.94,0.03
+15,Pulse Reactor,Kilowatt Kids,edm,euphoric,0.95,128,0.79,0.91,0.03,83,2020,"euphoric, festival, upbeat",0.62,0.06
+16,Neon Afterhours,Kilowatt Kids,edm,intense,0.88,124,0.55,0.86,0.04,69,2010,"driving, late night, dark",0.71,0.05
+17,Tidepool Drift,Saltwater Choir,ambient,calm,0.15,55,0.52,0.20,0.90,40,2010,"sleepy, floating, peaceful",0.92,0.03
+18,Blue Room Sessions,The Hartley Trio,jazz,relaxed,0.33,96,0.66,0.50,0.84,52,1990,"smoky, warm, late night",0.78,0.04
+19,Breakwater,Iron Tide,rock,energetic,0.86,140,0.58,0.61,0.09,66,2000,"anthemic, driving, upbeat",0.03,0.06
+20,Window Seat,Juniper Lane,folk,sad,0.30,84,0.28,0.38,0.93,47,2010,"melancholy, rainy, reflective",0.10,0.04
+21,Porch Light Waltz,Juniper Lane,folk,warm,0.36,98,0.68,0.45,0.91,51,2020,"cozy, nostalgic, gentle",0.08,0.04
+22,Velvet Static,Mara Sol,r&b,romantic,0.52,92,0.64,0.70,0.40,74,2020,"smooth, late night, warm",0.04,0.09
