@@ -1,0 +1,36 @@
+%% VibeFinder 2.0 architecture. Every box maps to code:
+%% src/guardrails.py, src/query_parser.py, src/retriever.py, src/agent.py,
+%% src/recommender.py (Module 3 engine), src/explainer.py, scripts/evaluate.py
+flowchart TD
+    U([User request<br/>CLI: python -m src.assistant]) --> IG{Input guardrail<br/>check_input}
+    IG -- "empty / too long / injection" --> BLK([Blocked + message])
+    IG -- ok --> P[Parse explicit cues<br/>parse_query]
+    IG -- ok --> R[Retrieve<br/>TF-IDF Retriever]
+
+    subgraph Sources [Retrieval sources]
+        KB[(knowledge/*.md<br/>20 genre + activity guides)]
+        CAT[(data/songs.csv +<br/>data/songs_extra.csv<br/>22 songs)]
+    end
+    KB --> R
+    CAT --> R
+
+    P --> PL[Plan<br/>pick scoring mode + steps]
+    R --> PL
+    PL --> BP[Build taste profile<br/>seed song OR merged guide hints,<br/>explicit cues override]
+    BP -- "no signals" --> CL([Clarify: ask user to rephrase])
+    BP --> REC[Recommend<br/>Module 3 scorer +<br/>diversity penalty]
+    CAT --> REC
+    REC --> SC{Self-check<br/>confidence = fit x specificity}
+    SC -- "below 0.5 and revisions left" --> RV[Revise<br/>drop impossible/unmatched label<br/>or switch to energy_focused]
+    RV --> REC
+    SC -- "good enough or out of revisions" --> EX[Explain<br/>Gemini if GEMINI_API_KEY<br/>else template]
+    EX --> OG{Output guardrail<br/>check_output: songs in catalog,<br/>no invented titles or citations}
+    OG -- "fails" --> TF[Template fallback] --> OG
+    OG -- passes --> OUT([Answer: ranked table, explanation,<br/>confidence, notes])
+    OUT --> HR{{Human review<br/>low confidence flagged,<br/>1-5 rating to logs/feedback.jsonl}}
+
+    REC -. every step .-> TR[(Trace<br/>logs/agent_traces.md,<br/>logs/traces/*.json)]
+    EV[[Evaluation harness<br/>scripts/evaluate.py<br/>17 cases, RAG vs baseline]] -. runs .-> U
+    EV --> RES[(eval/results.md)]
+    TESTS[[pytest: 487 tests]] -. checks .-> IG
+    TESTS -. checks .-> OG
