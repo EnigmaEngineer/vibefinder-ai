@@ -1,0 +1,134 @@
+"""Evaluation harness: run every case in eval/cases.json and print a scorecard.
+
+    python scripts/evaluate.py              # RAG on vs RAG off, writes eval/results.md
+    python scripts/evaluate.py --only rag   # just the full system
+
+Each case lists expectations (status, genre/mood/title of the top picks,
+feature thresholds, minimum confidence, review flag). A case passes only when
+every expectation holds. The exit code is 1 if the full system scores below
+--min-pass, so this can gate CI.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import statistics
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from tabulate import tabulate  # noqa: E402
+
+from src.agent import VibeAgent  # noqa: E402
+from src.explainer import TemplateExplainer  # noqa: E402
+
+
+def check_case(result, expect: dict) -> list:
+    """Return the list of failed expectations (empty list = pass)."""
+    fails = []
+    songs = [s for s, _, _ in result.recommendations]
+    top1, top3 = (songs[0] if songs else {}), songs[:3]
+
+    def want(cond, label):
+        if not cond:
+            fails.append(label)
+
+    if "status" in expect:
+        want(result.status == expect["status"], f"status {result.status} != {expect['status']}")
+    if "min_confidence" in expect:
+        want(result.confidence >= expect["min_confidence"], f"confidence {result.confidence:.2f} < {expect['min_confidence']}")
+    if "needs_review" in expect:
+        want(result.needs_review == expect["needs_review"], f"needs_review {result.needs_review}")
+    for key, field in (("top3_genre_any", "genre"), ("top3_mood_any", "mood"), ("top3_title_any", "title")):
+        if key in expect:
+            want(any(s.get(field) in expect[key] for s in top3), f"no top-3 {field} in {expect[key]}")
+    for key, field in (("top1_genre_in", "genre"), ("top1_title_in", "title")):
+        if key in expect:
+            want(top1.get(field) in expect[key], f"top-1 {field} {top1.get(field)!r} not in {expect[key]}")
+    for feat, limit in expect.get("top1_min", {}).items():
+        want(top1.get(feat, -1) >= limit, f"top-1 {feat} {top1.get(feat)} < {limit}")
+    for feat, limit in expect.get("top1_max", {}).items():
+        want(top1.get(feat, 99) <= limit, f"top-1 {feat} {top1.get(feat)} > {limit}")
+    if "top3_mood_none" in expect:
+        want(not any(s.get("mood") in expect["top3_mood_none"] for s in top3), f"top-3 includes mood in {expect['top3_mood_none']}")
+    if "min_attempts" in expect:
+        want(result.attempts >= expect["min_attempts"], f"attempts {result.attempts} < {expect['min_attempts']}")
+    if "seed_song" in expect:
+        want(result.seed_song == expect["seed_song"], f"seed {result.seed_song!r}")
+    if "exclude_title" in expect:
+        want(expect["exclude_title"] not in result.titles(), f"{expect['exclude_title']} recommended to itself")
+    if "note_contains" in expect:
+        want(any(expect["note_contains"] in n for n in result.notes), f"no note containing {expect['note_contains']!r}")
+    if result.status == "ok":
+        want(result.guardrail.get("ok"), "output guardrail failed")
+    return fails
+
+
+def run_suite(cases, use_rag: bool):
+    agent = VibeAgent(explainer=TemplateExplainer(), use_rag=use_rag)
+    rows = []
+    for case in cases:
+        result = agent.run(case["query"])
+        fails = check_case(result, case["expect"])
+        rows.append({"id": case["id"] + (" *" if case.get("known_limitation") else ""), "pass": not fails, "status": result.status,
+                     "confidence": result.confidence, "attempts": result.attempts,
+                     "top1": result.titles()[0] if result.titles() else "-",
+                     "why": "; ".join(fails) or "ok"})
+    return rows
+
+
+def summarize(name, rows):
+    passed = sum(r["pass"] for r in rows)
+    answered = [r["confidence"] for r in rows if r["status"] == "ok"]
+    avg = statistics.mean(answered) if answered else 0.0
+    return {"config": name, "passed": passed, "total": len(rows),
+            "pass_rate": passed / len(rows), "avg_confidence": avg,
+            "revisions": sum(max(r["attempts"] - 1, 0) for r in rows)}
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--cases", default=str(ROOT / "eval" / "cases.json"))
+    parser.add_argument("--only", choices=["rag", "baseline"])
+    parser.add_argument("--min-pass", type=float, default=0.8)
+    parser.add_argument("--out", default=str(ROOT / "eval" / "results.md"))
+    args = parser.parse_args(argv)
+    cases = json.loads(Path(args.cases).read_text(encoding="utf-8"))
+
+    configs = [("RAG + agent", True), ("baseline (no RAG)", False)]
+    if args.only:
+        configs = [c for c in configs if (c[1] if args.only == "rag" else not c[1])]
+
+    md = ["# Evaluation results", "",
+          f"Generated by `python scripts/evaluate.py` from `{Path(args.cases).relative_to(ROOT)}` ({len(cases)} cases).",
+          "Cases marked * are known limitations kept in the suite on purpose; they are expected to fail.", ""]
+    summaries = []
+    for name, use_rag in configs:
+        rows = run_suite(cases, use_rag)
+        summaries.append(summarize(name, rows))
+        table = [[r["id"], "PASS" if r["pass"] else "FAIL", r["status"], f"{r['confidence']:.2f}",
+                  r["attempts"], r["top1"], r["why"]] for r in rows]
+        headers = ["case", "result", "status", "conf", "tries", "top pick", "failed checks"]
+        print(f"\n== {name} ==")
+        print(tabulate(table, headers=headers, tablefmt="simple"))
+        md += [f"## {name}", "", tabulate(table, headers=headers, tablefmt="github"), ""]
+
+    summary_table = [[s["config"], f"{s['passed']}/{s['total']}", f"{s['pass_rate']:.0%}",
+                      f"{s['avg_confidence']:.2f}", s["revisions"]] for s in summaries]
+    summary_headers = ["config", "passed", "pass rate", "avg confidence (answered)", "revisions"]
+    print("\n(* = known limitation, expected to fail)")
+    print("\n== Summary ==")
+    print(tabulate(summary_table, headers=summary_headers, tablefmt="simple"))
+    md += ["## Summary", "", tabulate(summary_table, headers=summary_headers, tablefmt="github"), ""]
+    Path(args.out).write_text("\n".join(md), encoding="utf-8")
+    out = Path(args.out).resolve()
+    print(f"\nwrote {out.relative_to(ROOT) if out.is_relative_to(ROOT) else out}")
+
+    main_run = summaries[0]
+    return 0 if main_run["pass_rate"] >= args.min_pass else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
