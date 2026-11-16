@@ -1,4 +1,4 @@
-pandas
 pytest
-streamlit
 tabulate
+# Optional: lets the agent write explanations with Gemini when GEMINI_API_KEY is set.
+# google-genai
