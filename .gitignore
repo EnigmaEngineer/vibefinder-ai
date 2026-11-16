@@ -13,3 +13,8 @@ venv/
 
 # Pytest cache
 .pytest_cache/
+
+# Runtime logs (traces and the trace summary are committed on purpose)
+logs/assistant.log
+logs/feedback.jsonl
+logs/traces/
