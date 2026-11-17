@@ -154,7 +154,32 @@ Request: heavy metal for headbanging
 Status:  ok
 Sources: genre-rock
 Mode:    default | attempts: 1 | confidence: 0.45 (low)  ** flagged for human review **
-...table: Storm Runner, Neon Afterhours, Breakwater, Gym Hero, Concrete Verses...
++--------+-----------------+---------------+---------+--------------------------------------------+
+|   Rank | Title           | Artist        |   Score | Reasons                                    |
++========+=================+===============+=========+============================================+
+|      1 | Storm Runner    | Voltline      |    6.36 | genre match: 'rock' (+1.00)                |
+|        |                 |               |         | energy 0.91 vs target 0.88 (+3.88)         |
+|        |                 |               |         | valence 0.48 vs target 0.50 (+0.98)        |
+|        |                 |               |         | acousticness 0.10 vs target 0.10 (+0.50)   |
++--------+-----------------+---------------+---------+--------------------------------------------+
+|      2 | Neon Afterhours | Kilowatt Kids |    5.42 | energy 0.88 vs target 0.88 (+4.00)         |
+|        |                 |               |         | valence 0.55 vs target 0.50 (+0.95)        |
+|        |                 |               |         | acousticness 0.04 vs target 0.10 (+0.47)   |
++--------+-----------------+---------------+---------+--------------------------------------------+
+|      3 | Breakwater      | Iron Tide     |    5.33 | genre match: 'rock' (+1.00)                |
+|        |                 |               |         | energy 0.86 vs target 0.88 (+3.92)         |
+|        |                 |               |         | valence 0.58 vs target 0.50 (+0.92)        |
+|        |                 |               |         | acousticness 0.09 vs target 0.10 (+0.49)   |
+|        |                 |               |         | diversity penalty (genre duplicate): -1.00 |
++--------+-----------------+---------------+---------+--------------------------------------------+
+|      4 | Gym Hero        | Max Pulse     |    5.00 | energy 0.93 vs target 0.88 (+3.80)         |
+|        |                 |               |         | valence 0.77 vs target 0.50 (+0.73)        |
+|        |                 |               |         | acousticness 0.05 vs target 0.10 (+0.47)   |
++--------+-----------------+---------------+---------+--------------------------------------------+
+|      5 | Concrete Verses | Mic Theory    |    4.97 | energy 0.78 vs target 0.88 (+3.60)         |
+|        |                 |               |         | valence 0.62 vs target 0.50 (+0.88)        |
+|        |                 |               |         | acousticness 0.12 vs target 0.10 (+0.49)   |
++--------+-----------------+---------------+---------+--------------------------------------------+
 Answer (template):
 You asked for "heavy metal for headbanging".
 I read that as: genre rock, energy 0.88, positivity 0.50, acousticness 0.10 (from [genre-rock]).
@@ -241,6 +266,10 @@ Full per-case tables are in [eval/results.md](eval/results.md).
 ## Reflection
 
 This project taught me that the "AI" part is often the smallest piece. The scoring engine was done in Module 3. Most of the work here was deciding what the system should do when it doesn't know, and building checks that catch it lying to itself. The confidence score was the clearest example. My first version looked great in the demo and was quietly wrong for exactly the requests where a user most needs honesty. Writing the eval harness before trusting the numbers is what caught it. The responsible-AI reflection, limitations and AI collaboration notes are in [model_card.md](model_card.md).
+
+## Portfolio reflection: what this project says about me as an AI engineer
+
+I care more about whether a system is honest than whether the demo looks good. The scoring engine was done in Module 3, and the real work here was deciding what the system should do when it doesn't know: ask instead of guess, make confidence hard to fool, and keep the test cases that fail instead of deleting them. I build with retrieval, agents and LLMs, but I treat their output as something to verify, and I measure before I trust a number. Code: [github.com/EnigmaEngineer/vibefinder-ai](https://github.com/EnigmaEngineer/vibefinder-ai).
 
 ## Repo map
 
