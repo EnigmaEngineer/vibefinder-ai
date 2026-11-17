@@ -86,9 +86,15 @@ def check_output(
             problems.append(f"duplicate song: {song.get('title')!r}")
         seen.add(song.get("id"))
 
+    # LLMs often use curly quotes; normalize so a quoted title can't slip past the check.
+    explanation = explanation.translate(str.maketrans({"\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'"}))
     if len(explanation) > MAX_EXPLANATION_CHARS:
         problems.append("explanation too long")
     for quoted in re.findall(r'"([^"]{2,60})"', explanation):
+        # Titles start with a capital or a digit. A quoted lowercase word like "focused"
+        # is a tag or a phrase, not a song (a live Gemini run tripped on exactly that).
+        if not quoted[0].isupper() and not quoted[0].isdigit():
+            continue
         if quoted.lower() not in titles and not _is_user_quote(quoted, explanation):
             problems.append(f"explanation names a song that is not in the catalog: {quoted!r}")
     allowed = set(retrieved_ids)

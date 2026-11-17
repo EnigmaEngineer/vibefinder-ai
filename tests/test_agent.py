@@ -87,6 +87,7 @@ def test_bad_llm_output_falls_back_to_template(explainer):
 
 def test_no_api_key_means_template(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr("src.explainer.load_env_file", lambda *a, **k: None)  # ignore a local .env
     assert VibeAgent().explainer.name == "template"
 
 
@@ -95,3 +96,14 @@ def test_trace_markdown_has_every_step(agent):
     md = trace_to_markdown(r)
     for step in ("input_guardrail", "retrieve", "plan", "build_profile", "recommend", "output_guardrail"):
         assert step in md
+
+
+def test_env_file_is_loaded_without_overriding_real_env(tmp_path, monkeypatch):
+    from src.explainer import load_env_file
+    env = tmp_path / ".env"
+    env.write_text('# comment\nGEMINI_MODEL="from-file"\nOTHER_X=1\n')
+    monkeypatch.setenv("GEMINI_MODEL", "from-env")
+    monkeypatch.delenv("OTHER_X", raising=False)
+    load_env_file(env)
+    import os
+    assert os.environ["GEMINI_MODEL"] == "from-env" and os.environ["OTHER_X"] == "1"

@@ -51,3 +51,14 @@ def test_citation_that_was_not_retrieved_is_caught():
 def test_duplicates_and_too_many_are_caught():
     out = check_output([rec(CATALOG[0])] * 2, CATALOG, "", [], k=1)
     assert len(out.problems) == 2
+
+
+def test_curly_quoted_fake_title_is_caught():
+    out = check_output([rec(CATALOG[0])], CATALOG, "Try “Bohemian Rhapsody” too.", [], k=5)
+    assert not out.ok
+
+
+def test_quoted_lowercase_tag_is_not_treated_as_a_title():
+    # Real Gemini output quoted the mood tag "focused"; that should not block the answer.
+    text = f'"{CATALOG[1]["title"]}" has that "focused" feel.'
+    assert check_output([rec(CATALOG[1])], CATALOG, text, [], k=5).ok

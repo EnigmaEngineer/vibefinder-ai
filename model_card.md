@@ -76,6 +76,18 @@ I reviewed the agent's answers by hand against what a listener would actually wa
 
 5 of 8 passed. The 3 failures are listed under limitations. The interactive CLI also logs 1-5 ratings to `logs/feedback.jsonl` for future review rounds.
 
+### Live Gemini check (`python scripts/llm_check.py`)
+
+13 answerable eval cases, with Gemini writing every explanation and the output guardrail checking it.
+
+| Run | Model | Gemini text shown | Rejected by guardrail | API errors (fell back to template) |
+|---|---|---|---|---|
+| 1 | gemini-3.5-flash | 11 | 0 | 2 (new project still enabling) |
+| 2 | gemini-3.5-flash | 3 | 1 (false alarm, see below) | 9 (daily free quota ran out) |
+| 3, after the fix | gemini-3.5-flash-lite | 12 | 0 | 1 (permission error from Google) |
+
+Every API failure fell back to the template, so no user saw an error or an unchecked answer. Latest per-case results: [eval/llm_results.md](eval/llm_results.md).
+
 ## Limitations and biases
 
 - **My taste is baked in.** The guides say sleep music is ambient or classical and party music is popular. Plenty of people sleep to rain sounds or work out to metal. The system will keep steering them to the defaults.
@@ -85,7 +97,7 @@ I reviewed the agent's answers by hand against what a listener would actually wa
 - **Artist requests.** "songs by Ada Verlaine" treats the first matching song as a seed and excludes it, so you get one Ada Verlaine song instead of all of them.
 - **Keyword retrieval.** No synonyms. "I'm exhausted" won't find the sleep guide.
 - **English only**, and the energy words ("slow", "loud") are crude.
-- **Gemini path is untested against the live API.** The code and the fallback are unit-tested with fake explainers, but every result in this repo was produced in template mode.
+- **Gemini wording varies.** The picks and confidence are deterministic but Gemini's text isn't, so `llm_check.py` numbers can change between runs. The free tier also caps each model at 20 requests a day.
 
 ## Misuse and prevention
 
@@ -104,6 +116,8 @@ The biggest one was my confidence score. I asked for "heavy metal for headbangin
 My first eval run passed 14 out of 14. That felt good for about a minute. Then I realized I wrote those cases while building the system, so of course they passed. I went looking for requests that should break it. Negation and conflicting asks did, so I kept both as permanent failing cases. 15 of 17 is the number I actually trust.
 
 I also expected the revision loop to run a lot. With retrieval on it only kicks in for "chill but not boring". Retrieval does most of the work and the loop mostly helps with vague or impossible requests.
+
+Running Gemini for real found a guardrail bug I didn't expect. Gemini wrote the mood tag "focused" in double quotes. My output check treats anything in double quotes as a song title, so it decided Gemini made up a song called "focused" and threw the answer away. Safe, but wrong. Now only quoted text that starts with a capital letter or digit counts as a title. I also told Gemini to put quotes around song titles and nothing else. A fake title like "Bohemian Rhapsody" still gets caught, and there's a test for both cases.
 
 One bug hid in the notes shown to users. The agent would say "I switched to energy-focused scoring" even when it threw that attempt away. The trace had the right story but the note didn't. Now the notes only describe the attempt that was kept.
 

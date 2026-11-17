@@ -16,7 +16,7 @@ This builds on my **Module 3 project, the Music Recommender Simulation ("VibeFin
 | Agentic workflow | `src/agent.py` | Plan, retrieve, build profile, recommend, self-check, revise (up to 2x), explain, verify. Every step goes into a trace. |
 | Reliability layer | `src/guardrails.py` | Input checks (empty, too long, no words, prompt injection). Output checks (songs must exist, no duplicates, no invented titles or citations). Confidence score with a human-review flag. |
 | Evaluation harness | `scripts/evaluate.py`, `eval/cases.json` | 17 predefined cases run with RAG on and off, printed as a scorecard and saved to `eval/results.md`. |
-| Optional LLM explanations | `src/explainer.py` | If `GEMINI_API_KEY` is set the explanation is written by Gemini, then checked by the output guardrail. Default is a deterministic template so every result here is reproducible. |
+| Optional LLM explanations | `src/explainer.py`, `scripts/llm_check.py` | Put `GEMINI_API_KEY` in a `.env` file and Gemini writes the explanation. Its text still goes through the output guardrail. Tested live: 12 of 13 answers passed (see below). Without a key it uses a deterministic template, so the main eval is reproducible. |
 | Human in the loop | `src/assistant.py --interactive` | Low-confidence answers are flagged. In interactive mode you rate each answer 1-5 and it is logged to `logs/feedback.jsonl`. |
 
 The Module 3 scoring engine (`src/recommender.py`) is untouched. The agent wraps it.
@@ -64,7 +64,16 @@ python scripts/evaluate.py        # scorecard, writes eval/results.md
 python scripts/record_traces.py   # writes logs/agent_traces.md
 ```
 
-Optional Gemini explanations: `pip install google-genai`, then set `GEMINI_API_KEY` (and `GEMINI_MODEL` if you don't want `gemini-2.5-flash`). Nothing else changes. All the output below was produced without a key so anyone can reproduce it exactly.
+Optional Gemini explanations:
+
+```bash
+pip install google-genai
+cp .env.example .env               # then paste your key after GEMINI_API_KEY=
+python -m src.assistant "music for a rainy day"
+python scripts/llm_check.py        # live check of Gemini text against the output guardrail
+```
+
+Get a free key at aistudio.google.com/apikey. `.env` is git-ignored. The default model is `gemini-3.5-flash`; set `GEMINI_MODEL` to change it. The free tier only allows 20 requests per model per day, so `llm_check.py` (13 calls) uses most of it. Samples 1-3 below use the template so anyone can reproduce them exactly. Sample 4 is real Gemini output.
 
 ## Sample interactions
 
@@ -197,6 +206,30 @@ Output guardrail: passed
 
 Without the cap this run scored 0.93 "high", which was a lie. See the model card for why I added it.
 
+### 4. Same kind of request with Gemini writing the answer
+
+Real run with `gemini-3.5-flash`. The songs, confidence and notes come from the agent. Gemini only wrote the wording, and the output guardrail checked it before it was shown.
+
+```text
+$ python -m src.assistant "heavy metal for headbanging" -k 3
+Request: heavy metal for headbanging
+Status:  ok
+Sources: genre-rock
+Mode:    default | attempts: 1 | confidence: 0.45 (low)  ** flagged for human review **
+...table...
+Answer (gemini):
+*Caveat:* Our catalog has no metal songs, so the genre requirement was left out. There is low confidence in these picks as they are the closest available songs, not strong matches.
+
+To match your request for high-energy headbanging, we focused on electric, high-tempo tracks aligning with [genre-rock]:
+
+- `"Storm Runner"` by Voltline: Features an intense 0.91 energy level and a 0.10 acousticness score, offering driving rock performances [genre-rock].
+- `"Neon Afterhours"` by Kilowatt Kids: Perfectly matches your 0.88 energy target with an intense vibe to substitute for heavy rhythms.
+- `"Breakwater"` by Iron Tide: Delivers rock energy (0.86) [genre-rock] close to your target profile while maintaining very low acousticness (0.09).
+Output guardrail: passed
+```
+
+It kept both caveats and only cited the guide that was actually retrieved. If Gemini fails or its text breaks a rule, the user gets the template answer instead. That happened during testing with rate limits and a retired model name, and the user never saw an error.
+
 ## Guardrail and reliability behavior
 
 | Input | What the system did | Result |
@@ -241,10 +274,24 @@ baseline (no RAG)  5/17      29%                                 0.26           
 
 Full per-case tables are in [eval/results.md](eval/results.md).
 
+```text
+$ python scripts/llm_check.py      # GEMINI_MODEL=gemini-3.5-flash-lite
+study          gemini text shown
+sleep          API error -> template  gemini failed (403 PERMISSION_DENIED ...
+gym            gemini text shown
+...
+conflict       gemini text shown
+
+12/13 Gemini explanations passed the output guardrail, 0 rejected, 1 API errors.
+```
+
+Per-case results: [eval/llm_results.md](eval/llm_results.md).
+
 - **15 of 17 eval cases pass** with the full system. The 2 failures are kept in on purpose: negation ("I'm not sad, I want something upbeat" returns sad songs because the parser sees "sad") and conflicting asks ("loud acoustic jazz for working out" returns quiet jazz because genre-first scoring outweighs energy).
 - **Retrieval is the biggest single win.** Baseline passes only the 4 guardrail cases plus the revision case. Of the 10 core music requests, 5 can't be answered at all without retrieval and the other 5 come back at confidence 0.08 to 0.48.
 - **Average confidence on answered requests went from 0.26 to 0.63.** The baseline also needed 7 revisions to the full system's 1, and the revisions didn't help it, because a one-word profile is capped by the specificity factor no matter what.
 - **New unit tests: 48** across the retriever, parser, guardrails, agent and harness. The 439 Module 3 tests still pass unchanged.
+- **Live Gemini check: 12 of 13 passed the output guardrail.** The one miss was a Google-side permission error and it fell back to the template. In an earlier run the guardrail rejected one Gemini answer because it put the mood tag "focused" in quotes, and the check thought that was a made-up song. That was a false alarm, so now only quoted text starting with a capital letter or digit counts as a title.
 - **What I learned:** my first confidence score was easy to fool. "pop" alone scored 1.0. "heavy metal" scored 0.93 with zero metal songs in the results. I was measuring fit and never asking if the request could be met at all.
 
 ## Stretch features
@@ -281,13 +328,13 @@ src/agent.py            VibeAgent: the plan/act/check loop, confidence, traces
 src/retriever.py        TF-IDF retriever + knowledge-base loader
 src/query_parser.py     explicit-cue parser (the no-RAG baseline)
 src/guardrails.py       input and output checks
-src/explainer.py        template explainer + optional Gemini explainer
+src/explainer.py        template explainer + optional Gemini explainer (.env)
 src/recommender.py      Module 3 scoring engine (unchanged)
 src/main.py             Module 3 demo (unchanged)
 knowledge/              20 genre and activity guides
 data/                   songs.csv (Module 3) + songs_extra.csv (new)
-eval/                   cases.json + results.md
-scripts/                evaluate.py, record_traces.py
+eval/                   cases.json, results.md, llm_results.md
+scripts/                evaluate.py, record_traces.py, llm_check.py
 logs/agent_traces.md    saved agent reasoning traces
 diagrams/               architecture.mmd (source) ; assets/architecture.png (render)
 docs/                   original Module 3 README, model card, baseline output

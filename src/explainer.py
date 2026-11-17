@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Dict, List, Sequence
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ class GeminiExplainer:
         guides = "\n".join(f"[{doc_id}] {text}" for doc_id, text in (context or {}).items())
         prompt = (
             "You are a music recommendation assistant. Explain the picks below in under 150 words.\n"
-            "Rules: only mention the songs listed, write each song title in double quotes, "
+            "Rules: only mention the songs listed, put double quotes around song titles and nothing else, "
             "cite guides only by their [id], do not invent facts about artists.\n\n"
             f"Request: {query}\nTaste profile: {describe_profile(profile)}\n"
             f"Guides:\n{guides or '(none)'}\nRanked songs:\n{songs}\n"
@@ -96,12 +97,28 @@ class GeminiExplainer:
         return (response.text or "").strip()
 
 
+ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+
+
+def load_env_file(path: Path = ENV_FILE) -> None:
+    """Read KEY=value lines from .env into os.environ (real env vars win). No dependency needed."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
 def get_explainer(prefer_llm: bool = True):
     """Gemini when configured, otherwise the template. Never raises."""
+    load_env_file()
     key = os.environ.get("GEMINI_API_KEY")
     if prefer_llm and key:
         try:
-            return GeminiExplainer(key, os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"))
+            return GeminiExplainer(key, os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"))
         except Exception as exc:  # missing package, bad key format, etc.
             logger.warning("Gemini explainer unavailable (%s); using template", exc)
     return TemplateExplainer()
