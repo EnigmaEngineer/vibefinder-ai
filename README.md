@@ -36,8 +36,8 @@ The Module 3 scorer ranks the catalog. Then the agent scores its own result: con
 Python 3.10+.
 
 ```bash
-git clone https://github.com/EnigmaEngineer/applied-ai-system-project.git
-cd applied-ai-system-project
+git clone https://github.com/EnigmaEngineer/vibefinder-ai.git
+cd vibefinder-ai
 python -m venv .venv
 source .venv/bin/activate          # Windows PowerShell: .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
