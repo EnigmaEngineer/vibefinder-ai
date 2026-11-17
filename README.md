@@ -59,7 +59,7 @@ python -m src.main                                         # original Module 3 d
 Test it:
 
 ```bash
-pytest                            # 487 passed, 6 xfailed (xfails are Module 3 known bugs)
+pytest                            # 490 passed, 6 xfailed (xfails are Module 3 known bugs)
 python scripts/evaluate.py        # scorecard, writes eval/results.md
 python scripts/record_traces.py   # writes logs/agent_traces.md
 ```
@@ -259,7 +259,7 @@ Message: I couldn't tell what kind of music you want. Try naming a genre, a mood
 
 ```text
 $ pytest
-487 passed, 6 xfailed
+490 passed, 6 xfailed
 
 $ python scripts/evaluate.py
 ...
@@ -290,7 +290,7 @@ Per-case results: [eval/llm_results.md](eval/llm_results.md).
 - **15 of 17 eval cases pass** with the full system. The 2 failures are kept in on purpose: negation ("I'm not sad, I want something upbeat" returns sad songs because the parser sees "sad") and conflicting asks ("loud acoustic jazz for working out" returns quiet jazz because genre-first scoring outweighs energy).
 - **Retrieval is the biggest single win.** Baseline passes only the 4 guardrail cases plus the revision case. Of the 10 core music requests, 5 can't be answered at all without retrieval and the other 5 come back at confidence 0.08 to 0.48.
 - **Average confidence on answered requests went from 0.26 to 0.63.** The baseline also needed 7 revisions to the full system's 1, and the revisions didn't help it, because a one-word profile is capped by the specificity factor no matter what.
-- **New unit tests: 48** across the retriever, parser, guardrails, agent and harness. The 439 Module 3 tests still pass unchanged.
+- **New unit tests: 51** across the retriever, parser, guardrails, agent and harness. The 439 Module 3 tests still pass unchanged.
 - **Live Gemini check: 12 of 13 passed the output guardrail.** The one miss was a Google-side permission error and it fell back to the template. In an earlier run the guardrail rejected one Gemini answer because it put the mood tag "focused" in quotes, and the check thought that was a made-up song. That was a false alarm, so now only quoted text starting with a capital letter or digit counts as a title.
 - **What I learned:** my first confidence score was easy to fool. "pop" alone scored 1.0. "heavy metal" scored 0.93 with zero metal songs in the results. I was measuring fit and never asking if the request could be met at all.
 
