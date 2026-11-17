@@ -1,18 +1,18 @@
 # VibeFinder 2.0: an agentic, retrieval-grounded music recommender
 
-VibeFinder 2.0 takes a plain-English request like "something to help me fall asleep" or "more songs like Night Drive Loop" and returns ranked songs from a small catalog, a short explanation, a confidence score and a note when it is unsure. It retrieves genre and activity guides before it decides anything, checks its own results, retries when confidence is low, and refuses to show an answer that names a song it doesn't have.
+VibeFinder 2.0 is a music recommender you can just talk to. You type something like "something to help me fall asleep" and it gives you songs from a small catalog. It also tells you why it picked them and how sure it is. If it isn't sure, it says so.
 
-It matters because the original version only worked if you already spoke its language (a dictionary of genre, mood and energy numbers). Real listeners ask for activities and vibes. This version closes that gap, and it is honest about where it can't.
+I started from my Module 3 recommender. That one only worked if you handed it a Python dict with genre, mood and energy numbers. Nobody asks for music like that. People ask for an activity or a vibe. So I added retrieval to turn those requests into numbers. I also added an agent loop that grades its own picks, and guardrails so it can't recommend a song that doesn't exist.
 
 ## Base project: Music Recommender Simulation (Module 3)
 
-This extends my **Module 3 project, the Music Recommender Simulation ("VibeFinder 1.0")**. That project was a content-based recommender for a 10-song CSV. You had to hand it a taste profile as a Python dict (genre, mood, target energy and so on). It scored every song by label matches plus closeness on numeric features, offered three scoring modes (genre-first, mood-first, energy-focused) and used a diversity penalty to avoid repeating an artist or genre. It had no natural-language input, no retrieval, no confidence and no guardrails. The original write-up is kept in [docs/module3_README.md](docs/module3_README.md) and [docs/module3_model_card.md](docs/module3_model_card.md).
+This builds on my **Module 3 project, the Music Recommender Simulation ("VibeFinder 1.0")**. It was a content-based recommender over a 10-song CSV. You passed it a taste profile as a dict. It scored each song on label matches and on how close the numbers were to your targets. It had three scoring modes and a diversity penalty so one artist didn't take over the list. There was no free-text input, no retrieval and no confidence score. The original write-up is in [docs/module3_README.md](docs/module3_README.md) and [docs/module3_model_card.md](docs/module3_model_card.md).
 
 ## What's new in 2.0
 
 | Feature | Where | What it changes |
 |---|---|---|
-| RAG over two sources | `src/retriever.py`, `knowledge/`, `data/songs_extra.csv` | A TF-IDF retriever searches 20 hand-written genre/activity guides and the song catalog. The retrieved guides become the taste profile. Without them most requests can't be answered at all (see the eval). |
+| RAG over two sources | `src/retriever.py`, `knowledge/`, `data/songs_extra.csv` | A TF-IDF retriever searches 20 genre and activity guides added for this project and the song catalog. The retrieved guides become the taste profile. Without them half the core requests get no answer (see the eval). |
 | Agentic workflow | `src/agent.py` | Plan, retrieve, build profile, recommend, self-check, revise (up to 2x), explain, verify. Every step goes into a trace. |
 | Reliability layer | `src/guardrails.py` | Input checks (empty, too long, no words, prompt injection). Output checks (songs must exist, no duplicates, no invented titles or citations). Confidence score with a human-review flag. |
 | Evaluation harness | `scripts/evaluate.py`, `eval/cases.json` | 17 predefined cases run with RAG on and off, printed as a scorecard and saved to `eval/results.md`. |
@@ -27,9 +27,11 @@ The Module 3 scoring engine (`src/recommender.py`) is untouched. The agent wraps
 
 Source: [diagrams/architecture.mmd](diagrams/architecture.mmd). Every box is a real function or file.
 
-A request first hits the input guardrail. Bad input stops there. Good input goes two ways at once: the parser pulls out anything the user said directly (a genre name, "high energy", "90s"), and the retriever searches the guides and the catalog. The agent plans a scoring mode from what it found. It builds a taste profile from the seed song (if the user named one) or from the retrieved guides, and the user's own words always override the guides. If there is nothing to work with it asks the user to rephrase instead of guessing.
+A request hits the input guardrail first. Bad input stops right there. After that two things run. The parser grabs anything said directly, like a genre name or "90s". The retriever searches the guides and the catalog.
 
-The Module 3 scorer ranks the catalog. Then the agent scores its own result: confidence is how close the top 3 picks are to the best possible score, scaled down when the profile has fewer than 4 signals. Below 0.5 it revises (drops a label no song has, drops a label none of the top picks matched, or switches to energy-focused scoring) and keeps the best attempt. The explainer writes the answer, the output guardrail verifies it against the catalog, and a failed check falls back to the template. Low-confidence answers are flagged for a human. The eval harness and pytest sit outside the loop and test it.
+Next the agent picks a scoring mode and builds a taste profile. If the user named a song, the profile is copied from that song. Otherwise it comes from the retrieved guides. The user's own words always win over a guide. If there's nothing to go on, it asks them to rephrase.
+
+The Module 3 scorer ranks the songs. Then the agent grades its own picks. Confidence is how close the top 3 are to a perfect score, scaled down when the profile has fewer than 4 signals. Under 0.5 it loosens one thing and tries again. It does that at most twice and keeps the best try. The explanation gets written last and checked against the catalog. If that check fails it falls back to the template. Anything still under 0.5 gets flagged for a person. Pytest and the eval script sit outside the loop and test it.
 
 ## Setup
 
@@ -243,7 +245,7 @@ Full per-case tables are in [eval/results.md](eval/results.md).
 - **Retrieval is the biggest single win.** Baseline passes only the 4 guardrail cases plus the revision case. Of the 10 core music requests, 5 can't be answered at all without retrieval and the other 5 come back at confidence 0.08 to 0.48.
 - **Average confidence on answered requests went from 0.26 to 0.63.** The baseline also needed 7 revisions to the full system's 1, and the revisions didn't help it, because a one-word profile is capped by the specificity factor no matter what.
 - **New unit tests: 48** across the retriever, parser, guardrails, agent and harness. The 439 Module 3 tests still pass unchanged.
-- **What I learned:** my first confidence score was too easy to fool. "pop" alone scored 1.0, and "heavy metal" scored 0.93 while returning zero metal. Both came from measuring fit without asking whether the request was actually satisfiable.
+- **What I learned:** my first confidence score was easy to fool. "pop" alone scored 1.0. "heavy metal" scored 0.93 with zero metal songs in the results. I was measuring fit and never asking if the request could be met at all.
 
 ## Stretch features
 
@@ -256,20 +258,20 @@ Full per-case tables are in [eval/results.md](eval/results.md).
 
 ## Design decisions
 
-- **TF-IDF instead of embeddings.** The knowledge base is 20 short docs. A pure-Python TF-IDF index needs no download and no API key, is deterministic, and is easy to debug (I can see which word matched). The trade-off is no synonyms: "tired" won't find the sleep guide unless the word is in its keywords.
-- **The LLM is optional and sits at the end.** Retrieval, profiling, ranking and confidence are all deterministic. The only LLM job is wording the explanation, and even that gets checked. So the system works offline and grading doesn't depend on a key. The trade-off is that the default explanations read a bit robotic.
-- **User words beat retrieved hints.** If someone says "jazz" and the date-night guide says R&B, they get jazz. Retrieval fills gaps, it doesn't overrule.
-- **Confidence = fit x specificity.** Fit alone rewarded vague requests. Multiplying by `min(1, signals/4)` means a one-word profile can't look confident.
-- **Ask instead of guess.** No signals means a `clarify` status, not a random top 5.
-- **Didn't touch `recommender.py`.** The agent wraps the Module 3 engine so the old tests still prove the scorer works.
+- **TF-IDF, not embeddings.** It's only 20 short docs. TF-IDF in plain Python needs no download or API key, and I can see exactly which word matched. The downside is no synonyms. "tired" won't find the sleep guide unless that word is in its keywords.
+- **The LLM is optional.** Everything before the explanation is deterministic. Gemini only words the answer, and that still gets checked. So it runs offline and graders don't need a key. The template explanations do sound a bit robotic though.
+- **The user's words win.** Say "jazz" and you get jazz, even if the date-night guide says R&B.
+- **Confidence is fit times specificity.** Fit by itself made vague requests look great. Now a one-word profile gets scaled down.
+- **No signals means no answer.** It returns `clarify` instead of a random top 5.
+- **I left `recommender.py` alone.** The agent wraps it, so the old Module 3 tests still prove the scoring works.
 
 ## Reflection
 
-This project taught me that the "AI" part is often the smallest piece. The scoring engine was done in Module 3. Most of the work here was deciding what the system should do when it doesn't know, and building checks that catch it lying to itself. The confidence score was the clearest example. My first version looked great in the demo and was quietly wrong for exactly the requests where a user most needs honesty. Writing the eval harness before trusting the numbers is what caught it. The responsible-AI reflection, limitations and AI collaboration notes are in [model_card.md](model_card.md).
+The AI part ended up being the smallest piece. The scoring was already done in Module 3. Most of my time went into what the system should do when it doesn't know something, and into checks that catch it being wrong. The confidence score is the best example. My first version looked fine in the demo. It was wrong on exactly the requests where being wrong matters. I only caught it because I ran the eval before trusting the numbers. My responsible-AI reflection and AI collaboration notes are in [model_card.md](model_card.md).
 
 ## Portfolio reflection: what this project says about me as an AI engineer
 
-I care more about whether a system is honest than whether the demo looks good. The scoring engine was done in Module 3, and the real work here was deciding what the system should do when it doesn't know: ask instead of guess, make confidence hard to fool, and keep the test cases that fail instead of deleting them. I build with retrieval, agents and LLMs, but I treat their output as something to verify, and I measure before I trust a number. Code: [github.com/EnigmaEngineer/vibefinder-ai](https://github.com/EnigmaEngineer/vibefinder-ai).
+I'd rather build something that tells you when it's unsure than something that just demos well. On this project that meant a lot of unglamorous work. I made it ask instead of guess. I made the confidence score harder to fool. I kept two failing test cases in the suite instead of deleting them. I like working with retrieval, agents and LLMs, but I check what they output and I measure before I trust a number. Code: [github.com/EnigmaEngineer/vibefinder-ai](https://github.com/EnigmaEngineer/vibefinder-ai).
 
 ## Repo map
 
