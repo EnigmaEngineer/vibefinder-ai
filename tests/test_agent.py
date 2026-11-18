@@ -107,3 +107,9 @@ def test_env_file_is_loaded_without_overriding_real_env(tmp_path, monkeypatch):
     load_env_file(env)
     import os
     assert os.environ["GEMINI_MODEL"] == "from-env" and os.environ["OTHER_X"] == "1"
+
+
+def test_no_llm_flag_forces_template(monkeypatch):
+    from src.explainer import get_explainer
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    assert get_explainer(prefer_llm=False).name == "template"

@@ -59,7 +59,7 @@ python -m src.main                                         # original Module 3 d
 Test it:
 
 ```bash
-pytest                            # 490 passed, 6 xfailed (xfails are Module 3 known bugs)
+pytest                            # 491 passed, 6 xfailed (xfails are Module 3 known bugs)
 python scripts/evaluate.py        # scorecard, writes eval/results.md
 python scripts/record_traces.py   # writes logs/agent_traces.md
 ```
@@ -259,7 +259,7 @@ Message: I couldn't tell what kind of music you want. Try naming a genre, a mood
 
 ```text
 $ pytest
-490 passed, 6 xfailed
+491 passed, 6 xfailed
 
 $ python scripts/evaluate.py
 ...

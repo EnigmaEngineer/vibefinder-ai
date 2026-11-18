@@ -34,7 +34,7 @@ The hint numbers are judgment calls. They aren't measured from real listening da
 
 ### Automated tests
 
-`pytest`: 490 passed, 6 xfailed. 51 tests are new for this project. The 6 xfails are Module 3 bugs I documented back then and left as markers.
+`pytest`: 491 passed, 6 xfailed. 51 tests are new for this project. The 6 xfails are Module 3 bugs I documented back then and left as markers.
 
 ### Evaluation harness (`python scripts/evaluate.py`)
 

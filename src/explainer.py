@@ -73,9 +73,16 @@ class TemplateExplainer:
 class GeminiExplainer:
     name = "gemini"
 
+    TIMEOUT_MS = 12_000  # a live demo can't wait on a slow API; past this we use the template
+
     def __init__(self, api_key: str, model: str):
         from google import genai  # imported lazily: optional dependency
-        self._client = genai.Client(api_key=api_key)
+        try:
+            # One try, short timeout. The SDK's default retries can hang for minutes on a 503.
+            self._client = genai.Client(api_key=api_key, http_options={
+                "timeout": self.TIMEOUT_MS, "retry_options": {"attempts": 1}})
+        except Exception:  # older SDKs without these options
+            self._client = genai.Client(api_key=api_key, http_options={"timeout": self.TIMEOUT_MS})
         self._model = model
 
     def explain(self, query: str, profile: Dict, recommendations: Sequence, sources: List[str],
@@ -114,6 +121,8 @@ def load_env_file(path: Path = ENV_FILE) -> None:
 
 def get_explainer(prefer_llm: bool = True):
     """Gemini when configured, otherwise the template. Never raises."""
+    if not prefer_llm:
+        return TemplateExplainer()
     load_env_file()
     key = os.environ.get("GEMINI_API_KEY")
     if prefer_llm and key:

@@ -16,6 +16,7 @@ from pathlib import Path
 from tabulate import tabulate
 
 from src.agent import ROOT, VibeAgent, save_trace, trace_to_markdown
+from src.explainer import get_explainer
 from src.main import HEADERS, build_rows
 from src.recommender import STRATEGIES
 
@@ -71,6 +72,7 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="VibeFinder 2.0: describe what you want to hear.")
     parser.add_argument("query", nargs="?", help="what you want to listen to")
     parser.add_argument("--no-rag", action="store_true", help="skip retrieval (baseline behaviour)")
+    parser.add_argument("--no-llm", action="store_true", help="skip Gemini even if a key is set (template only)")
     parser.add_argument("--mode", choices=sorted(STRATEGIES), help="force a scoring mode")
     parser.add_argument("-k", type=int, default=5, help="number of songs (1-10)")
     parser.add_argument("--show-trace", action="store_true", help="print the agent's step-by-step trace")
@@ -89,7 +91,7 @@ def parse_args(argv=None):
 def main(argv=None) -> int:
     args = parse_args(argv)
     setup_logging(args.verbose)
-    agent = VibeAgent(use_rag=not args.no_rag, k=args.k)
+    agent = VibeAgent(use_rag=not args.no_rag, k=args.k, explainer=get_explainer(prefer_llm=not args.no_llm))
 
     def handle(query: str):
         result = agent.run(query, mode=args.mode)
