@@ -64,6 +64,15 @@ python scripts/evaluate.py        # scorecard, writes eval/results.md
 python scripts/record_traces.py   # writes logs/agent_traces.md
 ```
 
+Browser demo (same agent, drawn with Streamlit):
+
+```bash
+pip install streamlit
+streamlit run app.py               # opens http://localhost:8501
+```
+
+It has one-click example requests, toggles for RAG and Gemini, a side-by-side RAG on vs off view, and expanders for the agent trace and the retrieved guides.
+
 Optional Gemini explanations:
 
 ```bash
@@ -324,6 +333,7 @@ I'd rather build something that tells you when it's unsure than something that j
 
 ```text
 src/assistant.py        CLI (entry point)
+app.py                  browser demo (Streamlit)
 src/agent.py            VibeAgent: the plan/act/check loop, confidence, traces
 src/retriever.py        TF-IDF retriever + knowledge-base loader
 src/query_parser.py     explicit-cue parser (the no-RAG baseline)
